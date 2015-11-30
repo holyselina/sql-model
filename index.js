@@ -5,7 +5,81 @@
 var mysql = require('mysql');
 var Promise = require("bluebird");
 var _ = require('lodash');
-var resolver = require('./lib/resolver');
+var resolver = require('./resolver');
+
+ function prefixWhere(where){
+    if(!where || !(where = where.trim())){
+        return '';
+    }
+    var chk;
+    if((chk=where.substring(0,5)) && chk.toLowerCase() == 'where'){
+        return where;
+    }else if((chk=where.substring(0,2)) && chk.toLowerCase() == 'or'){
+        where = where.substring(2);
+    }else if((chk=where.substring(0,3)) && chk.toLowerCase() == 'and'){
+        where = where.substring(3);
+    }
+    return ' where '+ where.trim();
+ }
+
+ function joinCriteria(arr,join){
+     if(!arr || arr.length == 0){
+         return;
+     }else if(arr.length == 1){
+         return arr.join(' '+join+' ');
+     }
+     return '('+arr.join(' '+join+' ')+')';
+ }
+  
+ function parseChild(obj,join,parseValue){
+	var ret = [];
+	if(_.isObject(obj)){
+		Object.keys(obj).forEach(function(key){
+		  var val = obj[key];
+		  var v = parse(key,val,parseValue);
+		  if(v != null){
+			 ret.push(v);
+		  }
+		});
+	}
+	return joinCriteria(ret,join);
+ }
+  
+  function parse(key,val,parseValue){
+	 if(key == '$and'){
+		 return parseChild(val,'AND',parseValue);
+	 }
+	 if(key == '$or'){
+		 return parseChild(val,'OR',parseValue);
+	 }
+     if(_.isObject(val) && _.includes(Object.keys(val),'$or')){
+         var vs = val['$or'];
+         var temp = [];
+         if(_.isArray(vs)){
+             vs.forEach(function(ele){
+                 temp.push(parseValue(key,ele));
+             })
+         }
+        return joinCriteria(temp,'OR');
+     }
+     return parseValue(key,val);
+ }
+
+ function getSpecialValue(params,key,isDel){
+      if(!params) {
+          return;
+      }
+      var v = params['$'+key] || params['_'+key];
+      if(v != null && isDel){
+          delete params['$'+key];
+          delete params['_'+key];
+      }
+     return v;
+ }
+
+function setSpecialValue(params,key,value){
+   params['$'+key] = value;
+}
 
 //数据库操作对象的原型
 var proto = {
@@ -24,11 +98,12 @@ var proto = {
      hanldeDB : function(params){
         params = params || {};
         var ret = this.db;
-        if(!ret){
+        if(!ret && global.db){
             ret = global.db;
         }
-        if(params._db){
-            ret =  params._db;
+        var v = getSpecialValue(params,'db');
+        if(v){
+            ret =  v;
         }
         if(_.isFunction(ret)){
             ret = ret.call(this,params);
@@ -50,8 +125,8 @@ var proto = {
      * @param [select] 需要选择的数据列,多列空格分开,不传则查询所有列
      */
     getFindSQL : function(params,select){
-        params = params || {_join:false,_db:undefined,_groupBy:undefined,_sort:undefined,_noJoinSelect:undefined};
-        var jn,join=this.join,isJoin=params._join;
+        params = params || {};
+        var jn,join=this.join,isJoin= getSpecialValue(params,'join');
         if(join && isJoin != null){
             if(isJoin === true){
                 jn = join;
@@ -64,10 +139,10 @@ var proto = {
                 });
             }
         }
-        var limit=params._limit,
-            sort= params._sort,
-            groupBy=params._groupBy,
-            noJoinSelect=params._noJoinSelect;
+        var limit=getSpecialValue(params,'limit'),
+            sort= getSpecialValue(params,'sort'),
+            groupBy=getSpecialValue(params,'groupBy'),
+            noJoinSelect=getSpecialValue(params,'noJoinSelect');
         return this.getQuerySQL(params,
             {select:select,limit:limit,sort:sort,groupBy:groupBy,join:jn
                 ,noJoinSelect:noJoinSelect});
@@ -106,9 +181,9 @@ var proto = {
           params=null;
       }
       params = params || {};
-      params._noJoinSelect=true;
+      setSpecialValue(params,'noJoinSelect',true);
       this.find(params,'#count(*) as totalCount',function(err,rows){
-             delete params._noJoinSelect;
+             getSpecialValue(params,'noJoinSelect',true);
              if(err){
                  return callback(err);
              }
@@ -138,10 +213,8 @@ var proto = {
         var sort;
         var self = this;
         if(params){
-            limit = params._limit;
-            sort = params._sort;
-            delete params._limit;
-            delete params._sort;
+            limit =  getSpecialValue(params,'limit',true);
+            sort =  getSpecialValue(params,'sort',true);
         }
         var result = {total:0,list:[]};
         self.findCount(params,function (err,count){
@@ -151,8 +224,8 @@ var proto = {
             result.total = count;
             if(count > 0){
                 if(params){
-                    params._limit = limit;
-                    params._sort = sort;
+                    setSpecialValue(params,'limit',limit);
+                    setSpecialValue(params,'sort',sort);
                 }
                 self.find(params,select,function list(err,rows){
                     if(err){
@@ -230,8 +303,12 @@ var proto = {
      * @param callback 回调
      */
     remove : function(params,callback){
-        params = params || {};
-        var sql = this.getDeleteSQL(params,{limit:params._limit});
+        if(_.isFunction(params)){
+            callback = params;
+            params = null;
+        }
+        var sql = this.getDeleteSQL(params,
+           {limit:getSpecialValue(params,'limit')});
         var db = this.hanldeDB(params);
         this.execSQL(db,sql,callback);
     },
@@ -246,7 +323,8 @@ var proto = {
         }
         var sqls = [],self=this;
         paramsArr.forEach(function(ele){
-            var sql = self.getDeleteSQL(ele);
+            var sql = self.getDeleteSQL(ele,
+                {limit:getSpecialValue(ele,'limit')});
             sqls.push(sql);
         });
         var db = this.hanldeDB(paramsArr);
@@ -259,8 +337,12 @@ var proto = {
      * @param callback 回调
      */
     update:function(updateObj,params,callback){
-        params = params || {};
-        var sql = this.getUpdateSQL(updateObj,params);
+		if(_.isFunction(params)){
+            callback = params;
+			params = null;
+        }
+        var sql = this.getUpdateSQL(updateObj,params,
+            {limit:getSpecialValue(params,'limit')});
         var db = this.hanldeDB(params);
         this.execSQL(db,sql,callback);
     },
@@ -316,7 +398,6 @@ var proto = {
         return ret;
     },
     getSelect:function(select){
-        var schema = this.schema || {};
         var ret = [];
         var tar = [];
         var exclude = [];
@@ -348,41 +429,40 @@ var proto = {
         });
         return ret.join(',');
     },
-    getWhere:function(){
-        var ret = this._where;
-        if(ret != null){
-            if(this.where){
-                ret = ret + this.where;
-            }
-            return ret;
+    getWhere:function(params,addWhere){
+		var self = this;
+        var tableName = this.tableName;
+		var ret = parse('$and',params,function(key,val){
+			  var type = self.getSchemaValue(key);
+			  if(!type){
+				  return;
+			  }
+			  var field = type.field || key;
+			  var info = resolver.resolveParamValue(val);
+			  return tableName+'.'+field + ' ' + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+		});
+        if(ret == null){
+            ret = '';
         }
-        ret = '';
-        var self = this;
-        this.eachSchema(function(key,val){
-            if(val.isInWhere === false){
-                return;
-            }
-            var field = val.field || key;
-            ret+='[[ and '+self.tableName+'.'+field+' #{'+key+'}]]';
-        });
-        this._where = ret;
+		if(addWhere){
+            ret = ret + resolver.parseSQL(addWhere,params);
+        }
         if(this.where){
-            ret = ret + this.where;
+            ret = ret + resolver.parseSQL(this.where,params);
         }
-        return ret;
+        return prefixWhere(ret);
     },
     getQuerySQL : function(params,options){
         var tableName = this.tableName;
-        var where =  this.getWhere();
         options = options || {};
         var select = options.select;
         var selectSql = this.getSelect(select) || '';
         var tableAndJoin=tableName;
         var noJoinSelect = options.noJoinSelect;
+		var joinWhere = '';
         if(options.join){
             var join = '';
             var joinSelect = '';
-            var joinWhere = '';
             var hande = function(joinObj){
                 join += ' ';
                 var sct = joinObj.select
@@ -416,24 +496,24 @@ var proto = {
                 hande(options.join);
             }
             selectSql += joinSelect;
-            where += joinWhere;
             tableAndJoin +=  join;
         }
-        where = resolver.parseSQL(where,params);
-        where = prefixWhere(where);
-        tableAndJoin = resolver.parseSQL(tableAndJoin,params);
-        var ret = 'SELECT ' + selectSql + ' from ' + tableAndJoin + where;
+		var where =  this.getWhere(params,joinWhere);
+		if(options.join){
+			tableAndJoin = resolver.parseSQL(tableAndJoin,params);
+		}
+        var ret = 'SELECT ' + selectSql + ' FROM ' + tableAndJoin + where;
         var sort = options.sort;
         var limit = options.limit;
         var groupBy = options.groupBy;
         if(sort != null){
-            ret += ' order by '+ (sort.indexOf('.') == -1 ? tableName +'.' : '') + sort.trim();
+            ret += ' ORDER BY '+ (sort.indexOf('.') == -1 ? tableName +'.' : '') + sort.trim();
         }
         if(groupBy != null){
-            ret += ' group by '+ (groupBy.indexOf('.') == -1 ? tableName +'.' : '') + groupBy.trim();
+            ret += ' GROUP BY '+ (groupBy.indexOf('.') == -1 ? tableName +'.' : '') + groupBy.trim();
         }
         if(limit != null){
-            ret += ' limit ' + limit.toString();
+            ret += ' LIMIT ' + limit.toString();
         }
         return ret;
     },
@@ -476,7 +556,6 @@ var proto = {
     },
     getUpdateSQL:function(updateObj,params,options){
         var tableName = this.tableName;
-        var where =  this.getWhere();
         var retVal = 'UPDATE '+tableName + ' SET ';
         var arr = [];
         var keys = Object.keys(updateObj);
@@ -495,8 +574,9 @@ var proto = {
             }
         });
         retVal += arr.join(',');
+		var where =  this.getWhere(params);
         if(where){
-            retVal += prefixWhere(resolver.parseSQL(where,params));
+            retVal += where;
         }
         options = options || {};
         if(options.limit){
@@ -506,8 +586,8 @@ var proto = {
     },
     getDeleteSQL:function(params,options){
         var tableName = this.tableName;
-        var where = this.getWhere();
-        var ret = 'delete from '+tableName + prefixWhere(resolver.parseSQL(where,params));
+        var where = this.getWhere(params);
+        var ret = 'delete from '+tableName + where;
         options = options || {};
         if(options.limit){
             ret += ' limit ' + options.limit.toString();
@@ -536,17 +616,3 @@ exports.define = function (schema,tableName,exps,db,join){
     exports.extend(exps);
 };
 
-function prefixWhere(where){
-   if(!where || !(where = where.trim())){
-       return '';
-   }
-   var chk;
-   if((chk=where.substring(0,5)) && chk.toLowerCase() == 'where'){
-       return where;
-   }else if((chk=where.substring(0,2)) && chk.toLowerCase() == 'or'){
-       where = where.substring(2);
-   }else if((chk=where.substring(0,3)) && chk.toLowerCase() == 'and'){
-       where = where.substring(3);
-   }
-   return ' where '+ where.trim();
-}

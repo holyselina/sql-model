@@ -1,6 +1,6 @@
 {
   "name": "sql-model",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "sql",
   "main": "index.js",
   "scripts": {
@@ -18,10 +18,10 @@
   "bugs": {
     "url": "https://github.com/holyselina/sql-model/issues"
   },
-  "homepage": "https://github.com/holyselina/sql-model",
-   "dependencies": {
+  "homepage": "https://github.com/holyselina/sql-model" ,
+  "dependencies": {
     "bluebird": "^3.0.5",
     "lodash": "^3.10.1",
-    "mysql": "^2.7.0",
+    "mysql": "^2.7.0"
   }
 }
