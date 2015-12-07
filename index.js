@@ -5,81 +5,7 @@
 var mysql = require('mysql');
 var Promise = require("bluebird");
 var _ = require('lodash');
-var resolver = require('./resolver');
-
- function prefixWhere(where){
-    if(!where || !(where = where.trim())){
-        return '';
-    }
-    var chk;
-    if((chk=where.substring(0,5)) && chk.toLowerCase() == 'where'){
-        return where;
-    }else if((chk=where.substring(0,2)) && chk.toLowerCase() == 'or'){
-        where = where.substring(2);
-    }else if((chk=where.substring(0,3)) && chk.toLowerCase() == 'and'){
-        where = where.substring(3);
-    }
-    return ' where '+ where.trim();
- }
-
- function joinCriteria(arr,join){
-     if(!arr || arr.length == 0){
-         return;
-     }else if(arr.length == 1){
-         return arr.join(' '+join+' ');
-     }
-     return '('+arr.join(' '+join+' ')+')';
- }
-  
- function parseChild(obj,join,parseValue){
-	var ret = [];
-	if(_.isObject(obj)){
-		Object.keys(obj).forEach(function(key){
-		  var val = obj[key];
-		  var v = parse(key,val,parseValue);
-		  if(v != null){
-			 ret.push(v);
-		  }
-		});
-	}
-	return joinCriteria(ret,join);
- }
-  
-  function parse(key,val,parseValue){
-	 if(key == '$and'){
-		 return parseChild(val,'AND',parseValue);
-	 }
-	 if(key == '$or'){
-		 return parseChild(val,'OR',parseValue);
-	 }
-     if(_.isObject(val) && _.includes(Object.keys(val),'$or')){
-         var vs = val['$or'];
-         var temp = [];
-         if(_.isArray(vs)){
-             vs.forEach(function(ele){
-                 temp.push(parseValue(key,ele));
-             })
-         }
-        return joinCriteria(temp,'OR');
-     }
-     return parseValue(key,val);
- }
-
- function getSpecialValue(params,key,isDel){
-      if(!params) {
-          return;
-      }
-      var v = params['$'+key] || params['_'+key];
-      if(v != null && isDel){
-          delete params['$'+key];
-          delete params['_'+key];
-      }
-     return v;
- }
-
-function setSpecialValue(params,key,value){
-   params['$'+key] = value;
-}
+var resolver = require('./lib/resolver');
 
 //数据库操作对象的原型
 var proto = {
@@ -175,7 +101,7 @@ var proto = {
      * @param params 查询参数对象
      * @param callback 回调
      */
-    findCount:function(params,callback){
+    count:function(params,callback){
       if(_.isFunction(params)){
           callback=params;
           params=null;
@@ -217,7 +143,7 @@ var proto = {
             sort =  getSpecialValue(params,'sort',true);
         }
         var result = {total:0,list:[]};
-        self.findCount(params,function (err,count){
+        self.count(params,function (err,count){
             if(err){
                 return callback(err);
             }
@@ -355,7 +281,7 @@ var proto = {
         if(db.beginTransaction){
             db.beginTransaction(callback);
         }else{
-            callback(new Error('db not beginTransaction fn'));
+            callback(new Error('db not support beginTransaction'));
         }
     },
     /**
@@ -397,11 +323,18 @@ var proto = {
         }
         return ret;
     },
+    wrapField:function(field){
+        if(field){
+            return '`' + field + '`';
+        }
+        return field;
+    },
     getSelect:function(select){
         var ret = [];
         var tar = [];
         var exclude = [];
-        var tableName = this.tableName;
+        var self = this;
+        var alias = this.getAlias();
         if(select){
             select = select.trim();
             if(select[0] == '#'){
@@ -421,17 +354,27 @@ var proto = {
                 return;
             }
             var field = val.field;
-            if(field){
-                ret.push(tableName+'.'+field + ' AS ' + key);
+            if(field && key !== field){
+                ret.push(alias+'.'+self.wrapField(field) + ' AS ' + self.wrapField(key));
             }else{
-                ret.push(tableName+'.'+key);
+                ret.push(alias+'.'+self.wrapField(key));
             }
         });
         return ret.join(',');
     },
+    getTableSQL:function(){
+       var ret = this.wrapField(this.tableName);
+       if(this.alias){
+           ret += (' AS ' + this.wrapField(this.alias));
+       }
+       return ret;
+    },
+    getAlias:function(){
+       return this.wrapField(this.alias || this.tableName);
+    },
     getWhere:function(params,addWhere){
 		var self = this;
-        var tableName = this.tableName;
+        var alias = this.getAlias();
 		var ret = parse('$and',params,function(key,val){
 			  var type = self.getSchemaValue(key);
 			  if(!type){
@@ -439,7 +382,7 @@ var proto = {
 			  }
 			  var field = type.field || key;
 			  var info = resolver.resolveParamValue(val);
-			  return tableName+'.'+field + ' ' + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+			  return alias+'.'+self.wrapField(field) + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
 		});
         if(ret == null){
             ret = '';
@@ -452,65 +395,34 @@ var proto = {
         }
         return prefixWhere(ret);
     },
+    parseJoin:parseJoin,
     getQuerySQL : function(params,options){
-        var tableName = this.tableName;
         options = options || {};
         var select = options.select;
         var selectSql = this.getSelect(select) || '';
-        var tableAndJoin=tableName;
-        var noJoinSelect = options.noJoinSelect;
-		var joinWhere = '';
-        if(options.join){
-            var join = '';
-            var joinSelect = '';
-            var hande = function(joinObj){
-                join += ' ';
-                var sct = joinObj.select
-                    ,tbn = joinObj.tableName
-                    ,tbw = joinObj.where
-                    ,ty = joinObj.type || 'INNER'
-                    ,alias = joinObj.alias;
-                join += (ty.toUpperCase() + ' JOIN ' + tbn + (alias ? ' AS '+alias : '') + ' ON '+ joinObj.join);
-                if(sct && !noJoinSelect){
-                    if(selectSql || joinSelect){
-                        joinSelect+=',';
-                    }
-                    if(!Array.isArray(sct)){
-                        sct = [sct];
-                    }
-                    sct.forEach(function(ele,idx){
-                        if(idx>0) joinSelect+=',';
-                        joinSelect += (ele.indexOf('.') == -1 ? (alias || tbn) +'.' : '') + ele;
-                    });
-                }
-                if(tbw){
-                    if(joinWhere) joinWhere += ' ';
-                    joinWhere += tbw;
-                }
-            };
-            if(Array.isArray(options.join)){
-                options.join.forEach(function(ele){
-                    hande(ele);
-                })
-            }else{
-                hande(options.join);
-            }
-            selectSql += joinSelect;
-            tableAndJoin +=  join;
+        var tableAndJoin=this.getTableSQL();
+        var joinWhere;
+        var paresedJoin = this.parseJoin(options.join,{
+            noJoinSelect:options.noJoinSelect
+           ,params:params
+        });
+        if(paresedJoin){
+            if(selectSql) selectSql += ',';
+            selectSql += paresedJoin.select;
+            tableAndJoin +=  paresedJoin.join;
+            joinWhere = paresedJoin.where;
+            tableAndJoin = resolver.parseSQL(tableAndJoin,params);
         }
 		var where =  this.getWhere(params,joinWhere);
-		if(options.join){
-			tableAndJoin = resolver.parseSQL(tableAndJoin,params);
-		}
         var ret = 'SELECT ' + selectSql + ' FROM ' + tableAndJoin + where;
         var sort = options.sort;
         var limit = options.limit;
         var groupBy = options.groupBy;
         if(sort != null){
-            ret += ' ORDER BY '+ (sort.indexOf('.') == -1 ? tableName +'.' : '') + sort.trim();
+            ret += ' ORDER BY '+ sort.trim();
         }
         if(groupBy != null){
-            ret += ' GROUP BY '+ (groupBy.indexOf('.') == -1 ? tableName +'.' : '') + groupBy.trim();
+            ret += ' GROUP BY '+ groupBy.trim();
         }
         if(limit != null){
             ret += ' LIMIT ' + limit.toString();
@@ -555,21 +467,21 @@ var proto = {
         return 'INSERT INTO '+tableName + '('+fieldArr.join(',')+') VALUES ' + valArr.join(',');
     },
     getUpdateSQL:function(updateObj,params,options){
-        var tableName = this.tableName;
-        var retVal = 'UPDATE '+tableName + ' SET ';
+        var retVal = 'UPDATE '+this.getTableSQL() + ' SET ';
         var arr = [];
         var keys = Object.keys(updateObj);
         var self = this;
+        var alias = this.getAlias();
         keys.forEach(function(key){
             var type = self.getSchemaValue(key);
             if(!type) return;
-            var fieldName = type.field || key;
+            var fieldName = self.wrapField(type.field || key);
             var v = updateObj[key];
             if(v != null){
                 if(_.isString(v) && v[0] == '#'){
-                    arr.push(fieldName+'='+v.substring(1));
+                    arr.push(alias+'.'+fieldName+'='+v.substring(1));
                 }else{
-                    arr.push(fieldName+'='+resolver.resolveParamValue(v).value);
+                    arr.push(alias+'.'+fieldName+'='+resolver.resolveParamValue(v).value);
                 }
             }
         });
@@ -585,20 +497,23 @@ var proto = {
         return retVal;
     },
     getDeleteSQL:function(params,options){
-        var tableName = this.tableName;
+        var tableName = this.getTableSQL();
         var where = this.getWhere(params);
-        var ret = 'delete from '+tableName + where;
+        var retVal = 'delete from '+tableName;
+        if(where){
+            retVal += where;
+        }
         options = options || {};
         if(options.limit){
-            ret += ' limit ' + options.limit.toString();
+            retVal += ' limit ' + options.limit.toString();
         }
-        return ret;
+        return retVal;
     }
 };
 
 Promise.promisifyAll(proto,{
     filter: function(name, func, target, passesDefaultFilter) {
-        return ['find','findCount','findByPage','findBatch','save','saveBatch','removeBatch',
+        return ['find','count','findByPage','findBatch','save','saveBatch','removeBatch',
             'remove','update','beginTransaction'].indexOf(name) != -1;
     }
     ,multiArgs:false
@@ -616,3 +531,173 @@ exports.define = function (schema,tableName,exps,db,join){
     exports.extend(exps);
 };
 
+
+function prefixWhere(where){
+    if(!where || !(where = where.trim())){
+        return '';
+    }
+    var chk;
+    if((chk=where.substring(0,5)) && chk.toLowerCase() == 'where'){
+        return where;
+    }else if((chk=where.substring(0,2)) && chk.toLowerCase() == 'or'){
+        where = where.substring(2);
+    }else if((chk=where.substring(0,3)) && chk.toLowerCase() == 'and'){
+        where = where.substring(3);
+    }
+    return ' where '+ where.trim();
+}
+
+function joinCriteria(arr,join){
+    if(!arr || arr.length == 0){
+        return;
+    }else if(arr.length == 1){
+        return arr.join(' '+join+' ');
+    }
+    return '('+arr.join(' '+join+' ')+')';
+}
+
+function parseChild(obj,join,parseValue){
+    var ret = [];
+    if(_.isObject(obj)){
+        Object.keys(obj).forEach(function(key){
+            var val = obj[key];
+            var v = parse(key,val,parseValue);
+            if(v != null){
+                ret.push(v);
+            }
+        });
+    }
+    return joinCriteria(ret,join);
+}
+
+function parse(key,val,parseValue){
+    if(key == '$and'){
+        return parseChild(val,'AND',parseValue);
+    }
+    if(key == '$or'){
+        return parseChild(val,'OR',parseValue);
+    }
+    if(_.isObject(val) && _.includes(Object.keys(val),'$or')){
+        var vs = val['$or'];
+        var temp = [];
+        if(_.isArray(vs)){
+            vs.forEach(function(ele){
+                var v = parseValue(key,ele);
+                if(v != null){
+                    temp.push(v);
+                }
+            });
+        }
+        return joinCriteria(temp,'OR');
+    }
+    return parseValue(key,val);
+}
+
+function getSpecialValue(params,key,isDel){
+    if(!params) {
+        return;
+    }
+    var v = params['$'+key] || params['_'+key];
+    if(key == 'limit' && v == null){
+        var eachPageNum = params.eachPageNum;
+        var curPage = params.curPage
+        if(_.isNumber(eachPageNum) && _.isNumber(curPage)){
+            if(isDel){
+                delete params.eachPageNum;
+                delete params.curPage;
+            }
+            return [curPage * eachPageNum,eachPageNum];
+        }
+    }
+    if(v != null && isDel){
+        delete params['$'+key];
+        delete params['_'+key];
+    }
+    return v;
+}
+
+function setSpecialValue(params,key,value){
+    params['$'+key] = value;
+}
+
+function parseJoin(joins,options){
+    if(!joins){
+        return null;
+    }
+    var self = this;
+    var params = options.params;
+    var joinWhere = '';
+    var join = '';
+    var joinSelect = '';
+    var hande = function(joinObj){
+        join += ' ';
+        var sct = joinObj.select
+            ,tbn = joinObj.tableName
+            ,joinSql = joinObj.sql
+            ,tbw = joinObj.where
+            ,tbwSchema = joinObj.whereSchema
+            ,ty = joinObj.type || 'INNER'
+            ,alias = joinObj.alias;
+        if(joinSql){
+            if(!alias){
+                throw new Error('join sql must set alias');
+            }
+            tbn = joinSql;
+        }else{
+            tbn = self.wrapField(tbn);
+        }
+        if(alias){
+            alias = self.wrapField(alias);
+        }
+        join += (ty.toUpperCase() + ' JOIN '+ tbn +(alias ? ' AS '+alias  : '') + ' ON '+ joinObj.join);
+        if(sct && !options.noJoinSelect){
+            if(joinSelect){
+                joinSelect+=',';
+            }
+            if(!_.isArray(sct)){
+                sct = [sct];
+            }
+            sct.forEach(function(ele,idx){
+                if(idx>0) joinSelect+=',';
+                joinSelect += (ele.indexOf('.') == -1 ? (alias || tbn) +'.' : '') + ele;
+            });
+        }
+        if(_.isString(tbw)){
+            if(joinWhere) joinWhere += ' ';
+            joinWhere += tbw;
+        }else if(!tbwSchema && _.isPlainObject(tbw)){
+            tbwSchema = tbw;
+        }
+        if(_.isPlainObject(tbwSchema)){
+            var ret = parse('$and',params,function(key,val){
+                var field = tbwSchema[key];
+                if(!field){
+                    return;
+                }
+                var info = resolver.resolveParamValue(val);
+                return (alias || tbn)+'.'+self.wrapField(field)
+                    +' '+ (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+            });
+            if(ret){
+                if(joinWhere){
+                    joinWhere += ' AND ';
+                }
+                joinWhere += ret;
+            }
+        }
+    };
+    if(_.isArray(joins)){
+        joins.forEach(function(ele){
+            hande(ele);
+        })
+    }else if(_.isObject(joins)){
+        hande(joins);
+    }else{
+        return null;
+    }
+    return {
+        where:joinWhere,
+        join:join,
+        select:joinSelect
+    }
+}
