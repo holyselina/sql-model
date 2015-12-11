@@ -1,4 +1,3 @@
-//'use strict';
 /**
  * 封装sql语句到模型方法
  */
@@ -6,10 +5,10 @@ var mysql = require('mysql');
 var Promise = require("bluebird");
 var _ = require('lodash');
 var resolver = require('./lib/resolver');
-
+var mysqlCreater = require('./lib/mysqlCreater');
 //数据库操作对象的原型
 var proto = {
-    /**
+    /*
      * 代表数据库中 NULL 值
      */
     nullValue:resolver.nullValue,
@@ -17,7 +16,7 @@ var proto = {
      * 代表数据库中 NOT NULL 值,主要用于查询
      */
     notNullValue:resolver.notNullValue,
-    /**
+    /*
      * 预处理数据库对象
      * @param params 查询的条件对象
      */
@@ -36,7 +35,7 @@ var proto = {
         }
         return ret;
      },
-    /**
+    /*
      * 实际执行sql语句
      * @param db hanldeDB()返回的db对象
      * @param sql 实际的sql语句
@@ -45,14 +44,14 @@ var proto = {
      execSQL:function(db,sql,callback){
         db.query(sql,callback);
      },
-    /**
+    /*
      * 根据条件生成查询的sql语句
      * @param params 查询参数对象
      * @param [select] 需要选择的数据列,多列空格分开,不传则查询所有列
      */
     getFindSQL : function(params,select){
         params = params || {};
-        var jn,join=this.join,isJoin= getSpecialValue(params,'join');
+        var jn,join=this.join,isJoin=getSpecialValue(params,'join');
         if(join && isJoin != null){
             if(isJoin === true){
                 jn = join;
@@ -71,7 +70,7 @@ var proto = {
             noJoinSelect=getSpecialValue(params,'noJoinSelect');
         return this.getQuerySQL(params,
             {select:select,limit:limit,sort:sort,groupBy:groupBy,join:jn
-                ,noJoinSelect:noJoinSelect});
+            ,noJoinSelect:noJoinSelect});
     },
     /**
      * 根据查询条件查询结果集
@@ -181,7 +180,7 @@ var proto = {
         }
         var sqls = [],self=this;
         paramsArr.forEach(function(ele){
-            var sql = self.getFindSQL(ele,select);
+            var sql = self.getFindSQL(ele,ele.$select || select);
             sqls.push(sql);
         });
         var db = this.hanldeDB(paramsArr);
@@ -382,6 +381,7 @@ var proto = {
 			  }
 			  var field = type.field || key;
 			  var info = resolver.resolveParamValue(val);
+              if(info.value == null)return;
 			  return alias+'.'+self.wrapField(field) + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
 		});
         if(ret == null){
@@ -407,8 +407,10 @@ var proto = {
            ,params:params
         });
         if(paresedJoin){
-            if(selectSql) selectSql += ',';
-            selectSql += paresedJoin.select;
+            if(paresedJoin.select){
+                if(selectSql) selectSql += ',';
+                selectSql += paresedJoin.select;
+            }
             tableAndJoin +=  paresedJoin.join;
             joinWhere = paresedJoin.where;
             tableAndJoin = resolver.parseSQL(tableAndJoin,params);
@@ -418,11 +420,11 @@ var proto = {
         var sort = options.sort;
         var limit = options.limit;
         var groupBy = options.groupBy;
-        if(sort != null){
-            ret += ' ORDER BY '+ sort.trim();
-        }
         if(groupBy != null){
             ret += ' GROUP BY '+ groupBy.trim();
+        }
+        if(sort != null){
+            ret += ' ORDER BY '+ sort.trim();
         }
         if(limit != null){
             ret += ' LIMIT ' + limit.toString();
@@ -531,6 +533,7 @@ exports.define = function (schema,tableName,exps,db,join){
     exports.extend(exps);
 };
 
+exports.getCode = mysqlCreater.getCode;
 
 function prefixWhere(where){
     if(!where || !(where = where.trim())){
@@ -675,6 +678,7 @@ function parseJoin(joins,options){
                     return;
                 }
                 var info = resolver.resolveParamValue(val);
+                if(info.value == null)return;
                 return (alias || tbn)+'.'+self.wrapField(field)
                     +' '+ (info.prefix ? (info.prefix + ' '+info.value) : info.value);
             });
