@@ -532,7 +532,7 @@ exports.define = function (schema,tableName,exps,db,join){
     exports.extend(exps);
 };
 
-exports.getCode = mysqlCreater.getCode;
+exports.mysqlCreater = mysqlCreater;
 
 function prefixWhere(where){
     if(!where || !(where = where.trim())){
