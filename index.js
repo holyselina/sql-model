@@ -1,7 +1,6 @@
 /**
  * 封装sql语句到模型方法
  */
-var mysql = require('mysql');
 var Promise = require("bluebird");
 var _ = require('lodash');
 var resolver = require('./lib/resolver');
