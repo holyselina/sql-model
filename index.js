@@ -560,9 +560,18 @@ function joinCriteria(arr,join){
     return '('+arr.join(' '+join+' ')+')';
 }
 
-function parseChild(obj,join,parseValue){
+function parseChild(key,obj,join,parseValue){
     var ret = [];
-    if(_.isObject(obj)){
+    if(_.isArray(obj)){
+        obj.forEach(function(val){
+            if(_.isObject(val)){
+                var v = parse(key,val,parseValue);
+                if(v != null){
+                    ret.push(v);
+                }
+            }
+        });
+    }else if(_.isObject(obj)){
         Object.keys(obj).forEach(function(key){
             var val = obj[key];
             var v = parse(key,val,parseValue);
@@ -576,10 +585,10 @@ function parseChild(obj,join,parseValue){
 
 function parse(key,val,parseValue){
     if(key == '$and'){
-        return parseChild(val,'AND',parseValue);
+        return parseChild(key,val,'AND',parseValue);
     }
     if(key == '$or'){
-        return parseChild(val,'OR',parseValue);
+        return parseChild(key,val,'OR',parseValue);
     }
     if(_.isObject(val) && _.includes(Object.keys(val),'$or')){
         var vs = val['$or'];
@@ -706,3 +715,4 @@ function parseJoin(joins,options){
         select:joinSelect
     }
 }
+

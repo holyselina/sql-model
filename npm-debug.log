@@ -1,0 +1,83 @@
+0 info it worked if it ends with ok
+1 verbose cli [ 'D:\\Program Files\\nodejs5\\node.exe',
+1 verbose cli   'D:\\Program Files\\nodejs5\\node_modules\\npm\\bin\\npm-cli.js',
+1 verbose cli   'i',
+1 verbose cli   'sql-model' ]
+2 info using npm@3.3.12
+3 info using node@v5.2.0
+4 silly loadCurrentTree Starting
+5 silly install loadCurrentTree
+6 silly install readLocalPackageData
+7 silly fetchPackageMetaData sql-model
+8 silly fetchNamedPackageData sql-model
+9 silly mapToRegistry name sql-model
+10 silly mapToRegistry using default registry
+11 silly mapToRegistry registry https://registry.npmjs.org/
+12 silly mapToRegistry uri https://registry.npmjs.org/sql-model
+13 verbose request uri https://registry.npmjs.org/sql-model
+14 verbose request no auth needed
+15 info attempt registry request try #1 at 09:49:23
+16 verbose request using bearer token for auth
+17 verbose request id 94c723afec13bf59
+18 verbose etag "9SZKCBQXR7345T2WS91EPAD3T"
+19 http request GET https://registry.npmjs.org/sql-model
+20 http 304 https://registry.npmjs.org/sql-model
+21 verbose headers { 'cache-control': 'max-age=300',
+21 verbose headers   'accept-ranges': 'bytes',
+21 verbose headers   date: 'Mon, 14 Dec 2015 01:48:59 GMT',
+21 verbose headers   via: '1.1 varnish',
+21 verbose headers   connection: 'keep-alive',
+21 verbose headers   'x-served-by': 'cache-sjc3131-SJC',
+21 verbose headers   'x-cache': 'MISS',
+21 verbose headers   'x-cache-hits': '0',
+21 verbose headers   'x-timer': 'S1450057739.333951,VS0,VE153' }
+22 silly get cb [ 304,
+22 silly get   { 'cache-control': 'max-age=300',
+22 silly get     'accept-ranges': 'bytes',
+22 silly get     date: 'Mon, 14 Dec 2015 01:48:59 GMT',
+22 silly get     via: '1.1 varnish',
+22 silly get     connection: 'keep-alive',
+22 silly get     'x-served-by': 'cache-sjc3131-SJC',
+22 silly get     'x-cache': 'MISS',
+22 silly get     'x-cache-hits': '0',
+22 silly get     'x-timer': 'S1450057739.333951,VS0,VE153' } ]
+23 verbose etag https://registry.npmjs.org/sql-model from cache
+24 verbose get saving sql-model to C:\Users\weiyj\AppData\Roaming\npm-cache\registry.npmjs.org\sql-model\.cache.json
+25 silly install normalizeTree
+26 silly loadCurrentTree Finishing
+27 silly loadIdealTree Starting
+28 silly install loadIdealTree
+29 silly cloneCurrentTree Starting
+30 silly install cloneCurrentTreeToIdealTree
+31 silly cloneCurrentTree Finishing
+32 silly loadShrinkwrap Starting
+33 silly install loadShrinkwrap
+34 silly loadShrinkwrap Finishing
+35 silly loadAllDepsIntoIdealTree Starting
+36 silly install loadAllDepsIntoIdealTree
+37 silly rollbackFailedOptional Starting
+38 silly rollbackFailedOptional Finishing
+39 silly runTopLevelLifecycles Starting
+40 silly runTopLevelLifecycles Finishing
+41 silly install printInstalled
+42 verbose stack Error: Refusing to install sql-model as a dependency of itself
+42 verbose stack     at checkSelf (D:\Program Files\nodejs5\node_modules\npm\lib\install\validate-args.js:40:14)
+42 verbose stack     at Array.<anonymous> (D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\bind-actor.js:15:8)
+42 verbose stack     at LOOP (D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\chain.js:15:14)
+42 verbose stack     at chain (D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\chain.js:20:5)
+42 verbose stack     at D:\Program Files\nodejs5\node_modules\npm\lib\install\validate-args.js:15:5
+42 verbose stack     at D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\async-map.js:52:35
+42 verbose stack     at Array.forEach (native)
+42 verbose stack     at D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\async-map.js:52:11
+42 verbose stack     at Array.forEach (native)
+42 verbose stack     at asyncMap (D:\Program Files\nodejs5\node_modules\npm\node_modules\slide\lib\async-map.js:51:8)
+43 verbose cwd F:\gitnew\sql-model
+44 error Windows_NT 6.1.7601
+45 error argv "D:\\Program Files\\nodejs5\\node.exe" "D:\\Program Files\\nodejs5\\node_modules\\npm\\bin\\npm-cli.js" "i" "sql-model"
+46 error node v5.2.0
+47 error npm  v3.3.12
+48 error code ENOSELF
+49 error Refusing to install sql-model as a dependency of itself
+50 error If you need help, you may report this error at:
+50 error     <https://github.com/npm/npm/issues>
+51 verbose exit [ 1, true ]
