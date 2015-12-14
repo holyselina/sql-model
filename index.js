@@ -438,7 +438,7 @@ var proto = {
         var self = this;
         options = options || {};
         var hanlde = function(model){
-            if(!_.isObject(model)){
+            if(!_.isPlainObject(model)){
                 throw new Error('插入参数错误');
             }
             var output = [];
@@ -564,14 +564,14 @@ function parseChild(key,obj,join,parseValue){
     var ret = [];
     if(_.isArray(obj)){
         obj.forEach(function(val){
-            if(_.isObject(val)){
-                var v = parse(key,val,parseValue);
+            if(_.isPlainObject(val)){
+                var v = parse('$and',val,parseValue);
                 if(v != null){
                     ret.push(v);
                 }
             }
         });
-    }else if(_.isObject(obj)){
+    }else if(_.isPlainObject(obj)){
         Object.keys(obj).forEach(function(key){
             var val = obj[key];
             var v = parse(key,val,parseValue);
@@ -590,7 +590,7 @@ function parse(key,val,parseValue){
     if(key == '$or'){
         return parseChild(key,val,'OR',parseValue);
     }
-    if(_.isObject(val) && _.includes(Object.keys(val),'$or')){
+    if(_.isPlainObject(val) && _.includes(Object.keys(val),'$or')){
         var vs = val['$or'];
         var temp = [];
         if(_.isArray(vs)){
@@ -704,7 +704,7 @@ function parseJoin(joins,options){
         joins.forEach(function(ele){
             hande(ele);
         })
-    }else if(_.isObject(joins)){
+    }else if(_.isPlainObject(joins)){
         hande(joins);
     }else{
         return null;
