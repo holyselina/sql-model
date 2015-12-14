@@ -534,6 +534,8 @@ exports.define = function (schema,tableName,exps,db,join){
 
 exports.mysqlCreater = mysqlCreater;
 
+exports.resolver=resolver;
+
 function prefixWhere(where){
     if(!where || !(where = where.trim())){
         return '';
