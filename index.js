@@ -395,6 +395,55 @@ var proto = {
         return prefixWhere(ret);
     },
     parseJoin:parseJoin,
+    parseSort:function(sort){// {'userID' : 'desc'}
+        if(!sort) return '';
+        return ' ORDER BY '+ sort;
+        /*if(_.isString(sort)){
+            var field = sort;
+            sort = {};
+            sort[field] = 1;
+        }
+        if(_.isPlainObject(sort)){
+            var ret = [];
+            _.forEach(sort,function(v,key){
+                var sv = this.getSchemaValue(key);
+                if(sv){
+                    ret.push(this.getAlias() +'.' + this.wrapField(sv.field) + (v==-1 ? ' desc' : ''));
+                }
+            },this);
+            if(ret.length>0){
+                return ' ORDER BY '+ ret.join(',');
+            }
+        }
+        return '';*/
+    },
+    parseGroupBy:function(groupBy){
+        if(!groupBy) return '';
+        return ' GROUP BY '+ groupBy;
+        /*if(_.isArray(groupBy)){
+            groupBy = groupBy.join(',');
+        }
+        if(_.isString(groupBy)){
+            var gs = groupBy.split(','),ret=[];
+            gs.forEach(function(ele){
+                ele = ele.trim();
+                var sv = this.getSchemaValue(ele);
+                if(sv){
+                    ret.push(this.getAlias() +'.' + this.wrapField(sv.field));
+                }
+            },this);
+            if(ret.length > 0){
+                return ' GROUP BY '+ ret.join(',');
+            }
+        }
+        return '';*/
+    },
+    parseLimit:function(limit){
+        if(limit != null){
+           return ' LIMIT ' + limit.toString();
+        }
+        return '';
+    },
     getQuerySQL : function(params,options){
         options = options || {};
         var select = options.select;
@@ -420,13 +469,13 @@ var proto = {
         var limit = options.limit;
         var groupBy = options.groupBy;
         if(groupBy != null){
-            ret += ' GROUP BY '+ groupBy.trim();
+            ret += this.parseGroupBy(groupBy);
         }
         if(sort != null){
-            ret += ' ORDER BY '+ sort.trim();
+            ret += this.parseSort(sort);
         }
         if(limit != null){
-            ret += ' LIMIT ' + limit.toString();
+            ret += this.parseLimit(limit);
         }
         return ret;
     },
@@ -493,7 +542,7 @@ var proto = {
         }
         options = options || {};
         if(options.limit){
-            retVal += ' limit ' + options.limit.toString();
+            retVal += this.parseLimit(options.limit);
         }
         return retVal;
     },
@@ -506,7 +555,7 @@ var proto = {
         }
         options = options || {};
         if(options.limit){
-            retVal += ' limit ' + options.limit.toString();
+            retVal += this.parseLimit(options.limit);
         }
         return retVal;
     }
