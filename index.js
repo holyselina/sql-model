@@ -10,11 +10,11 @@ var proto = {
     /*
      * 代表数据库中 NULL 值
      */
-    nullValue:resolver.nullValue,
+     nullValue:resolver.nullValue,
     /**
      * 代表数据库中 NOT NULL 值,主要用于查询
      */
-    notNullValue:resolver.notNullValue,
+     notNullValue:resolver.notNullValue,
     /*
      * 预处理数据库对象
      * @param params 查询的条件对象
@@ -373,13 +373,13 @@ var proto = {
     getWhere:function(params,addWhere){
 		var self = this;
         var alias = this.getAlias();
-		var ret = parse('$and',params,function(key,val){
+		var ret = resolver.parseParamsObject(params,function(key,val){
 			  var type = self.getSchemaValue(key);
 			  if(!type){
 				  return;
 			  }
 			  var field = type.field || key;
-			  var info = resolver.resolveParamValue(val);
+			  var info = resolver.parseParamValue(val);
               if(info.value == null)return;
 			  return alias+'.'+self.wrapField(field) + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
 		});
@@ -454,7 +454,7 @@ var proto = {
                 if(!_.includes(fieldArr,fieldName)){
                     fieldArr.push(fieldName);
                 }
-                output.push(resolver.resolveParamValue(val).value);
+                output.push(resolver.parseParamValue(val).value);
             });
             valArr.push('('+output.join(',')+')');
         };
@@ -482,7 +482,7 @@ var proto = {
                 if(_.isString(v) && v[0] == '#'){
                     arr.push(alias+'.'+fieldName+'='+v.substring(1));
                 }else{
-                    arr.push(alias+'.'+fieldName+'='+resolver.resolveParamValue(v).value);
+                    arr.push(alias+'.'+fieldName+'='+resolver.parseParamValue(v).value);
                 }
             }
         });
@@ -551,60 +551,6 @@ function prefixWhere(where){
     return ' where '+ where.trim();
 }
 
-function joinCriteria(arr,join){
-    if(!arr || arr.length == 0){
-        return;
-    }else if(arr.length == 1){
-        return arr.join(' '+join+' ');
-    }
-    return '('+arr.join(' '+join+' ')+')';
-}
-
-function parseChild(key,obj,join,parseValue){
-    var ret = [];
-    if(_.isArray(obj)){
-        obj.forEach(function(val){
-            if(_.isPlainObject(val)){
-                var v = parse('$and',val,parseValue);
-                if(v != null){
-                    ret.push(v);
-                }
-            }
-        });
-    }else if(_.isPlainObject(obj)){
-        Object.keys(obj).forEach(function(key){
-            var val = obj[key];
-            var v = parse(key,val,parseValue);
-            if(v != null){
-                ret.push(v);
-            }
-        });
-    }
-    return joinCriteria(ret,join);
-}
-
-function parse(key,val,parseValue){
-    if(key == '$and'){
-        return parseChild(key,val,'AND',parseValue);
-    }
-    if(key == '$or'){
-        return parseChild(key,val,'OR',parseValue);
-    }
-    if(_.isPlainObject(val) && _.includes(Object.keys(val),'$or')){
-        var vs = val['$or'];
-        var temp = [];
-        if(_.isArray(vs)){
-            vs.forEach(function(ele){
-                var v = parseValue(key,ele);
-                if(v != null){
-                    temp.push(v);
-                }
-            });
-        }
-        return joinCriteria(temp,'OR');
-    }
-    return parseValue(key,val);
-}
 
 function getSpecialValue(params,key,isDel){
     if(!params) {
@@ -682,12 +628,12 @@ function parseJoin(joins,options){
             tbwSchema = tbw;
         }
         if(_.isPlainObject(tbwSchema)){
-            var ret = parse('$and',params,function(key,val){
+            var ret = resolver.parseParamsObject(params,function(key,val){
                 var field = tbwSchema[key];
                 if(!field){
                     return;
                 }
-                var info = resolver.resolveParamValue(val);
+                var info = resolver.parseParamValue(val);
                 if(info.value == null)return;
                 return (alias || tbn)+'.'+self.wrapField(field)
                     +' '+ (info.prefix ? (info.prefix + ' '+info.value) : info.value);
