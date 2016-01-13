@@ -322,11 +322,7 @@ var proto = {
             schema[key] = ret;
         }
         if(ret.sort == null){
-            var keys = this._schemaKeys;
-            if(!keys){
-                keys=this._schemaKeys=Object.keys(schema);
-            }
-            ret.sort = keys.indexOf(key);
+            ret.sort = Object.keys(schema).indexOf(key);
         }
         return ret;
     },
