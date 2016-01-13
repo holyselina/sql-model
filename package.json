@@ -1,6 +1,6 @@
 {
   "name": "sql-model",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "sql",
   "main": "index.js",
   "scripts": {

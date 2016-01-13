@@ -314,10 +314,19 @@ var proto = {
     getSchemaValue:function(key){
         var schema = this.schema || {};
         var ret = schema[key];
+        if(ret == null) return;
         if(_.isString(ret)){
             ret = {
                 field : ret
             };
+            schema[key] = ret;
+        }
+        if(ret.sort == null){
+            var keys = this._schemaKeys;
+            if(!keys){
+                keys=this._schemaKeys=Object.keys(schema);
+            }
+            ret.sort = keys.indexOf(key);
         }
         return ret;
     },
@@ -381,7 +390,11 @@ var proto = {
 			  var field = type.field || key;
 			  var info = resolver.parseParamValue(val);
               if(info.value == null)return;
-			  return alias+'.'+self.wrapField(field) + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+              var val = alias+'.'+self.wrapField(field) + (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+			  return {
+                  value : val,
+                  sort:type.sort
+              };
 		});
         if(ret == null){
             ret = '';
@@ -628,6 +641,7 @@ function parseJoin(joins,options){
             tbwSchema = tbw;
         }
         if(_.isPlainObject(tbwSchema)){
+            var ks = Object.keys(tbwSchema);
             var ret = resolver.parseParamsObject(params,function(key,val){
                 var field = tbwSchema[key];
                 if(!field){
@@ -635,8 +649,12 @@ function parseJoin(joins,options){
                 }
                 var info = resolver.parseParamValue(val);
                 if(info.value == null)return;
-                return (alias || tbn)+'.'+self.wrapField(field)
+                var val = (alias || tbn)+'.'+self.wrapField(field)
                     +' '+ (info.prefix ? (info.prefix + ' '+info.value) : info.value);
+                return {
+                    value : val,
+                    sort:ks.indexOf(key)
+                };
             });
             if(ret){
                 joinWhere += (' AND ' + ret);
