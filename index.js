@@ -19,7 +19,7 @@ var proto = {
      * 预处理数据库对象
      * @param params 查询的条件对象
      */
-     hanldeDB : function(params){
+     hanldeDB : function(params,funcName){
         params = params || {};
         var ret = this.db;
         if(!ret && global.db){
@@ -30,7 +30,7 @@ var proto = {
             ret =  v;
         }
         if(_.isFunction(ret)){
-            ret = ret.call(this,params);
+            ret = ret.call(this,params,funcName);
         }
         return ret;
      },
@@ -91,7 +91,7 @@ var proto = {
             params = select = null;
         }
         var sql = this.getFindSQL(params,select);
-        var db = this.hanldeDB(params);
+        var db = this.hanldeDB(params,'find');
         this.execSQL(db,sql,callback);
     },
     /**
@@ -182,7 +182,7 @@ var proto = {
             var sql = self.getFindSQL(ele,ele.$select || select);
             sqls.push(sql);
         });
-        var db = this.hanldeDB(paramsArr);
+        var db = this.hanldeDB(paramsArr,'findBatch');
         this.execSQL(db,sqls.join(';'),function(err,rs){
             if(err){
                 return callback(err);
@@ -201,7 +201,7 @@ var proto = {
     save : function(params,callback){
         params = params || {};
         var sql = this.getInsertSQL(params);
-        var db = this.hanldeDB(params);
+        var db = this.hanldeDB(params,'save');
         this.execSQL(db,sql,callback);
     },
     /**
@@ -218,7 +218,7 @@ var proto = {
             var sql = self.getInsertSQL(ele);
             sqls.push(sql);
         });
-        var db = this.hanldeDB(paramsArr);
+        var db = this.hanldeDB(paramsArr,'saveBatch');
         this.execSQL(db,sqls.join(';'),callback);
     },
     /**
@@ -233,7 +233,7 @@ var proto = {
         }
         var sql = this.getDeleteSQL(params,
            {limit:getSpecialValue(params,'limit')});
-        var db = this.hanldeDB(params);
+        var db = this.hanldeDB(params,'remove');
         this.execSQL(db,sql,callback);
     },
     /**
@@ -251,7 +251,7 @@ var proto = {
                 {limit:getSpecialValue(ele,'limit')});
             sqls.push(sql);
         });
-        var db = this.hanldeDB(paramsArr);
+        var db = this.hanldeDB(paramsArr,'removeBatch');
         this.execSQL(db,sqls.join(';'),callback);
     },
     /**
@@ -267,7 +267,7 @@ var proto = {
         }
         var sql = this.getUpdateSQL(updateObj,params,
             {limit:getSpecialValue(params,'limit')});
-        var db = this.hanldeDB(params);
+        var db = this.hanldeDB(params,'update');
         this.execSQL(db,sql,callback);
     },
     /**
@@ -275,7 +275,7 @@ var proto = {
      * @param callback 回调
      */
     beginTransaction:function(callback){
-        var db=this.hanldeDB();
+        var db=this.hanldeDB(null,'beginTransaction');
         if(db.beginTransaction){
             db.beginTransaction(callback);
         }else{
@@ -544,6 +544,8 @@ exports.define = function (schema,tableName,exps,db,join){
 exports.mysqlCreater = mysqlCreater;
 
 exports.resolver=resolver;
+
+exports.proto=proto;
 
 function prefixWhere(where){
     if(!where || !(where = where.trim())){
